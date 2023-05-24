@@ -82,7 +82,7 @@ def main():
             LIMIT 1
             MATCH (p:Person)
             UNWIND allKeys as key
-            WITH p, collect(p[key]) AS vector
+            WITH p, collect(toInteger(p[key])) AS vector
             SET p.vector = vector;
         """
     ))
@@ -120,18 +120,25 @@ def main():
         """
     ))
     # # run kmeans
-    # print(gds.run_cypher(
-    #     """
-    #     CALL gds.beta.kmeans.write(
-    #       'survey',
-    #       {
-    #         k:14,
-    #         nodeProperty:'scaledVector',
-    #         writeProperty: 'kmeansCommunity'
-    #       }
-    #     );
-    #     """
-    # ))
+    print("Running kmeans ...")
+    print(gds.run_cypher(
+        """
+        CALL gds.beta.kmeans.write(
+          'survey',
+          {
+            k:14,
+            nodeProperty:'scaledVector',
+            writeProperty: 'kmeansCommunity'
+          }
+        );
+        """
+    ))
+    print(gds.run_cypher(
+       """
+        match (p:Person)
+        return count(distinct(p.kmeansCommunity))
+       """
+    ))
 
 
 def setup_person_properties_from_csv_fields(df):
