@@ -7,6 +7,7 @@
 
 ### Run kmeans
 1. Create a virtualenv and install requirements.txt
+2. Uses the kmeans example in this course: https://graphacademy.neo4j.com/courses/gds-community-detection/3-kmeans/2-kmeans/
 2. Copy data to load to <neo4j-home>/import directory.
 2. python kmeans_gds.py
 3. python kmeans_sagemaker.py

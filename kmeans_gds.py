@@ -28,45 +28,13 @@ def main():
     # that the property doesn’t exist at all
     # (https://neo4j.com/developer/kb/understanding-non-existent-properties-and-null-values/)
     # Assign averages to null values for non-categorical columns.
-    categorical_cols_list = ""
-    for col in categorical_cols:
-        quoted_col = f"'{col}'"
-        categorical_cols_list += "," + quoted_col if categorical_cols_list else quoted_col
+    query = query_to_assign_avgs_to_null_non_category_columns(categorical_cols)
     print(gds.run_cypher(
-       f"""
-        MATCH (p:Person)
-        UNWIND keys(p) AS key
-        WITH p, key
-        // filter only numerical values
-        WHERE NOT key IN [{categorical_cols_list}]
-        // WITH [x in keys(p) WHERE NOT x IN [{categorical_cols_list}] | x] AS allIntKeys
-        WITH key, avg(p[key]) AS averageValue
-        MATCH (p1:Person) WHERE p1[key] IS NULL
-        // Fill in missing values
-        CALL apoc.create.setProperty(p1, key, averageValue)
-        YIELD node
-        RETURN distinct 'done'
-        """
+       query
     ))
     # Encode categorical variables
     for col in categorical_cols:
-        # enumerate unique values to use for encoding
-        m = {}
-        for index, v in enumerate(df[col].dropna().unique()):
-            m[v] = index + 1
-        print(m)
-        # setup cypher query to add encoded property
-        cypher_query = f"""
-                MATCH (p:Person)
-                WITH p, CASE p['{col}']
-        """
-        max_index = 0
-        for k,v in m.items():
-            cypher_query += f"WHEN '{k}' THEN {v} "
-            max_index = v
-        # handle null values that fall through the case by assigning it average
-        cypher_query += f" ELSE {round(max_index/2)} END as encoded " \
-                        f"SET p.`{col}_Encoded` = encoded"
+        cypher_query = query_to_encode_categorical_column(col, df)
         print(f"Running {cypher_query}")
         print(gds.run_cypher(cypher_query))
 
@@ -139,6 +107,48 @@ def main():
         return count(distinct(p.kmeansCommunity))
        """
     ))
+
+
+def query_to_encode_categorical_column(col, df):
+    # enumerate unique values to use for encoding
+    m = {}
+    for index, v in enumerate(df[col].dropna().unique()):
+        m[v] = index + 1
+    print(m)
+    # setup cypher query to add encoded property
+    cypher_query = f"""
+                MATCH (p:Person)
+                WITH p, CASE p['{col}']
+        """
+    max_index = 0
+    for k, v in m.items():
+        cypher_query += f"WHEN '{k}' THEN {v} "
+        max_index = v
+    # handle null values that fall through the case by assigning it average
+    cypher_query += f" ELSE {round(max_index / 2)} END as encoded " \
+                    f"SET p.`{col}_Encoded` = encoded"
+    return cypher_query
+
+
+def query_to_assign_avgs_to_null_non_category_columns(categorical_cols):
+    categorical_cols_list = ""
+    for col in categorical_cols:
+        quoted_col = f"'{col}'"
+        categorical_cols_list += "," + quoted_col if categorical_cols_list else quoted_col
+    query = f"""
+        MATCH (p:Person)
+        UNWIND keys(p) AS key
+        WITH p, key
+        // filter only numerical values
+        WHERE NOT key IN [{categorical_cols_list}]
+        WITH key, avg(p[key]) AS averageValue
+        MATCH (p1:Person) WHERE p1[key] IS NULL
+        // Fill in missing values
+        CALL apoc.create.setProperty(p1, key, averageValue)
+        YIELD node
+        RETURN distinct 'done'
+        """
+    return query
 
 
 def setup_person_properties_from_csv_fields(df):
